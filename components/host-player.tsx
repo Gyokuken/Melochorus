@@ -4,12 +4,20 @@ import { type ComponentType, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ListMusic, Loader2, Play, Plus, SkipForward } from "lucide-react";
+import {
+  ListMusic,
+  ListStart,
+  Loader2,
+  Play,
+  Plus,
+  SkipForward,
+} from "lucide-react";
 import type { YouTubeProps } from "react-youtube";
 
 import { SubmitForm } from "@/components/submit-form";
 import { Button } from "@/components/ui/button";
 import { useStreams } from "@/hooks/use-streams";
+import { cn } from "@/lib/utils";
 import type { StreamDTO } from "@/lib/streams";
 
 // react-youtube touches the window/IFrame API, so load it client-only.
@@ -34,6 +42,8 @@ export function HostPlayer() {
   const [current, setCurrent] = useState<StreamDTO | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  // A track the host has bumped to play next, regardless of votes.
+  const [playNextId, setPlayNextId] = useState<string | null>(null);
 
   // On first load, resume whatever the server says is currently playing.
   useEffect(() => {
@@ -43,14 +53,31 @@ export function HostPlayer() {
     }
   }, [nowPlaying, bootstrapped]);
 
+  // Promote the next track: the host's "play next" pick if set, else top-voted.
+  async function promoteNext(): Promise<{ nowPlaying: StreamDTO | null }> {
+    if (playNextId) {
+      const id = playNextId;
+      setPlayNextId(null);
+      const res = await fetch("/api/streams/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId: id }),
+      });
+      if (res.ok) return res.json();
+      // the pick is gone / already played — fall back to the vote order
+    }
+    const res = await fetch("/api/streams/next", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Couldn't advance the queue.");
+    return data;
+  }
+
   async function advance() {
     if (advancing) return;
     setAdvancing(true);
     try {
-      const res = await fetch("/api/streams/next", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Couldn't advance the queue.");
-      setCurrent(data.nowPlaying as StreamDTO | null);
+      const data = await promoteNext();
+      setCurrent(data.nowPlaying);
       setBootstrapped(true);
       await refresh();
       if (!data.nowPlaying) toast.info("Queue's empty — add more tracks!");
@@ -61,6 +88,40 @@ export function HostPlayer() {
     } finally {
       setAdvancing(false);
     }
+  }
+
+  // Host override: play a specific track right now, bypassing the vote order.
+  async function playNow(streamId: string) {
+    if (advancing) return;
+    setAdvancing(true);
+    try {
+      const res = await fetch("/api/streams/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't play that track.");
+      if (playNextId === streamId) setPlayNextId(null);
+      setCurrent(data.nowPlaying as StreamDTO | null);
+      setBootstrapped(true);
+      await refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't play that track.",
+      );
+    } finally {
+      setAdvancing(false);
+    }
+  }
+
+  // Host override: queue a specific track to play next (after the current one).
+  function markPlayNext(streamId: string) {
+    const willQueue = playNextId !== streamId;
+    setPlayNextId(willQueue ? streamId : null);
+    toast.success(
+      willQueue ? "This track will play next." : "Removed from play-next.",
+    );
   }
 
   const onEnd: YouTubeProps["onEnd"] = () => {
@@ -153,26 +214,54 @@ export function HostPlayer() {
             {queue.map((s, i) => (
               <li
                 key={s.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card p-2"
+                className={cn(
+                  "space-y-2 rounded-lg border bg-card p-2",
+                  playNextId === s.id ? "border-primary/50" : "border-border",
+                )}
               >
-                <span className="w-4 text-center text-xs font-medium text-muted-foreground">
-                  {i + 1}
-                </span>
-                <div className="relative aspect-video w-16 shrink-0 overflow-hidden rounded bg-muted">
-                  <Image
-                    src={s.thumbnail}
-                    alt=""
-                    fill
-                    sizes="64px"
-                    className="object-cover"
-                  />
+                <div className="flex items-center gap-3">
+                  <span className="w-4 text-center text-xs font-medium text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <div className="relative aspect-video w-14 shrink-0 overflow-hidden rounded bg-muted">
+                    <Image
+                      src={s.thumbnail}
+                      alt=""
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                  </div>
+                  <p className="line-clamp-2 min-w-0 flex-1 text-xs font-medium leading-snug">
+                    {s.title}
+                  </p>
+                  <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                    {s.score}
+                  </span>
                 </div>
-                <p className="line-clamp-2 min-w-0 flex-1 text-xs font-medium leading-snug">
-                  {s.title}
-                </p>
-                <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-                  {s.score}
-                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={playNextId === s.id ? "default" : "outline"}
+                    onClick={() => markPlayNext(s.id)}
+                    className="h-7 flex-1 px-2 text-xs"
+                  >
+                    <ListStart className="h-3.5 w-3.5" />
+                    {playNextId === s.id ? "Up next" : "Play next"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void playNow(s.id)}
+                    disabled={advancing}
+                    className="h-7 flex-1 px-2 text-xs"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Now
+                  </Button>
+                </div>
               </li>
             ))}
           </ol>
