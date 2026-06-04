@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getServerAuthSession, isAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { serializeStream } from "@/lib/streams";
+import { QUEUE_ORDER, serializeStream } from "@/lib/streams";
 
 /**
  * POST /api/streams/next
@@ -26,7 +26,7 @@ export async function POST() {
   const next = await prisma.$transaction(async (tx) => {
     const top = await tx.stream.findFirst({
       where: { played: false },
-      orderBy: [{ score: "desc" }, { createdAt: "asc" }],
+      orderBy: QUEUE_ORDER,
       select: { id: true },
     });
     if (!top) return null;

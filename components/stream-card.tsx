@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
-import { ArrowBigDown, ArrowBigUp } from "lucide-react";
+import { ArrowBigDown, ArrowBigUp, Zap } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -115,6 +115,12 @@ export function StreamCard({
       </a>
 
       <div className="min-w-0 flex-1">
+        {stream.isPriority && (
+          <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+            <Zap className="h-3 w-3 fill-current" />
+            Priority
+          </span>
+        )}
         <p className="line-clamp-2 text-sm font-medium leading-snug">
           {stream.title}
         </p>

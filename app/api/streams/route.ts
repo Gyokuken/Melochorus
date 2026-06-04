@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { serializeStream, type StreamsResponse } from "@/lib/streams";
+import { QUEUE_ORDER, serializeStream, type StreamsResponse } from "@/lib/streams";
 import { extractYouTubeId, fetchYouTubeMeta } from "@/lib/youtube";
 
 // Always fresh — this is the endpoint everyone polls every few seconds.
@@ -22,7 +22,7 @@ export async function GET() {
   const [queue, nowPlaying] = await Promise.all([
     prisma.stream.findMany({
       where: { played: false },
-      orderBy: [{ score: "desc" }, { createdAt: "asc" }],
+      orderBy: QUEUE_ORDER,
       include: {
         addedBy: ADDED_BY,
         votes: userId

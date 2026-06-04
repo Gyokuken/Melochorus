@@ -1,6 +1,8 @@
 // Shared DTO + serializer for streams, used by the API routes and the frontend
 // so the client and server agree on the exact shape over the wire.
 
+import type { Prisma } from "@prisma/client";
+
 /** A single track as sent to the client. */
 export type StreamDTO = {
   id: string;
@@ -16,6 +18,8 @@ export type StreamDTO = {
   userVote: number;
   /** True if the current viewer is the one who submitted this track. */
   isOwner: boolean;
+  /** True if the host has bumped this track to play next, regardless of votes. */
+  isPriority: boolean;
 };
 
 /** Response of GET /api/streams (the polling endpoint). */
@@ -30,6 +34,17 @@ export type VoteResponse = {
   userVote: number;
 };
 
+/**
+ * Canonical queue ordering, shared by the leaderboard and the auto-advance:
+ * host-prioritized tracks first (FIFO by when they were bumped), then by net
+ * votes, then oldest first as a tie-breaker.
+ */
+export const QUEUE_ORDER: Prisma.StreamOrderByWithRelationInput[] = [
+  { priorityAt: { sort: "asc", nulls: "last" } },
+  { score: "desc" },
+  { createdAt: "asc" },
+];
+
 // Minimal structural shape the serializer needs — satisfied by our Prisma
 // queries (which include `addedBy` and optionally the viewer's `votes`).
 type SerializableStream = {
@@ -41,6 +56,7 @@ type SerializableStream = {
   score: number;
   createdAt: Date;
   playedAt: Date | null;
+  priorityAt: Date | null;
   addedById: string;
   addedBy: { name: string | null; image: string | null } | null;
   votes?: { value: number }[];
@@ -66,5 +82,6 @@ export function serializeStream(
     },
     userVote: stream.votes?.[0]?.value ?? 0,
     isOwner: !!userId && stream.addedById === userId,
+    isPriority: stream.priorityAt != null,
   };
 }

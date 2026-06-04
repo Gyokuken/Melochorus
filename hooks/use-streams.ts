@@ -62,11 +62,12 @@ export function useStreams(intervalMs = 5000) {
         const next = prev.map((s) =>
           s.id === streamId ? { ...s, score, userVote } : s,
         );
-        // keep the leaderboard ordering: score desc, then oldest first
-        next.sort(
-          (a, b) =>
-            b.score - a.score || a.createdAt.localeCompare(b.createdAt),
-        );
+        // keep the leaderboard ordering: priority first, then score desc,
+        // then oldest first (mirrors the server's QUEUE_ORDER)
+        next.sort((a, b) => {
+          if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
+          return b.score - a.score || a.createdAt.localeCompare(b.createdAt);
+        });
         return next;
       });
     },

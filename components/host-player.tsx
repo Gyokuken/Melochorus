@@ -41,9 +41,7 @@ export function HostPlayer() {
   const { nowPlaying, queue, refresh } = useStreams();
   const [current, setCurrent] = useState<StreamDTO | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
-  const [advancing, setAdvancing] = useState(false);
-  // A track the host has bumped to play next, regardless of votes.
-  const [playNextId, setPlayNextId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   // On first load, resume whatever the server says is currently playing.
   useEffect(() => {
@@ -53,31 +51,16 @@ export function HostPlayer() {
     }
   }, [nowPlaying, bootstrapped]);
 
-  // Promote the next track: the host's "play next" pick if set, else top-voted.
-  async function promoteNext(): Promise<{ nowPlaying: StreamDTO | null }> {
-    if (playNextId) {
-      const id = playNextId;
-      setPlayNextId(null);
-      const res = await fetch("/api/streams/play", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ streamId: id }),
-      });
-      if (res.ok) return res.json();
-      // the pick is gone / already played — fall back to the vote order
-    }
-    const res = await fetch("/api/streams/next", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Couldn't advance the queue.");
-    return data;
-  }
-
+  // Advance to the next track. The server orders priority tracks first, so a
+  // host "Play next" pick is auto-selected here without any client tracking.
   async function advance() {
-    if (advancing) return;
-    setAdvancing(true);
+    if (busy) return;
+    setBusy(true);
     try {
-      const data = await promoteNext();
-      setCurrent(data.nowPlaying);
+      const res = await fetch("/api/streams/next", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't advance the queue.");
+      setCurrent(data.nowPlaying as StreamDTO | null);
       setBootstrapped(true);
       await refresh();
       if (!data.nowPlaying) toast.info("Queue's empty — add more tracks!");
@@ -86,14 +69,14 @@ export function HostPlayer() {
         err instanceof Error ? err.message : "Couldn't advance the queue.",
       );
     } finally {
-      setAdvancing(false);
+      setBusy(false);
     }
   }
 
   // Host override: play a specific track right now, bypassing the vote order.
   async function playNow(streamId: string) {
-    if (advancing) return;
-    setAdvancing(true);
+    if (busy) return;
+    setBusy(true);
     try {
       const res = await fetch("/api/streams/play", {
         method: "POST",
@@ -102,7 +85,6 @@ export function HostPlayer() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't play that track.");
-      if (playNextId === streamId) setPlayNextId(null);
       setCurrent(data.nowPlaying as StreamDTO | null);
       setBootstrapped(true);
       await refresh();
@@ -111,17 +93,33 @@ export function HostPlayer() {
         err instanceof Error ? err.message : "Couldn't play that track.",
       );
     } finally {
-      setAdvancing(false);
+      setBusy(false);
     }
   }
 
-  // Host override: queue a specific track to play next (after the current one).
-  function markPlayNext(streamId: string) {
-    const willQueue = playNextId !== streamId;
-    setPlayNextId(willQueue ? streamId : null);
-    toast.success(
-      willQueue ? "This track will play next." : "Removed from play-next.",
-    );
+  // Host override: toggle a track's "play next" priority (persisted server-side).
+  async function togglePriority(streamId: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/streams/prioritize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't update priority.");
+      await refresh();
+      toast.success(
+        data.isPriority ? "Bumped to play next." : "Priority removed.",
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't update priority.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   const onEnd: YouTubeProps["onEnd"] = () => {
@@ -152,8 +150,8 @@ export function HostPlayer() {
                 {queue.length ? "Ready when you are." : "No tracks queued yet."}
               </p>
               {queue.length > 0 && (
-                <Button onClick={() => void advance()} disabled={advancing}>
-                  {advancing ? (
+                <Button onClick={() => void advance()} disabled={busy}>
+                  {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Play className="h-4 w-4" />
@@ -178,10 +176,10 @@ export function HostPlayer() {
             <Button
               variant="outline"
               onClick={() => void advance()}
-              disabled={advancing}
+              disabled={busy}
               className="shrink-0"
             >
-              {advancing ? (
+              {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <SkipForward className="h-4 w-4" />
@@ -216,7 +214,7 @@ export function HostPlayer() {
                 key={s.id}
                 className={cn(
                   "space-y-2 rounded-lg border bg-card p-2",
-                  playNextId === s.id ? "border-primary/50" : "border-border",
+                  s.isPriority ? "border-primary/50" : "border-border",
                 )}
               >
                 <div className="flex items-center gap-3">
@@ -243,19 +241,20 @@ export function HostPlayer() {
                   <Button
                     type="button"
                     size="sm"
-                    variant={playNextId === s.id ? "default" : "outline"}
-                    onClick={() => markPlayNext(s.id)}
+                    variant={s.isPriority ? "default" : "outline"}
+                    onClick={() => void togglePriority(s.id)}
+                    disabled={busy}
                     className="h-7 flex-1 px-2 text-xs"
                   >
                     <ListStart className="h-3.5 w-3.5" />
-                    {playNextId === s.id ? "Up next" : "Play next"}
+                    {s.isPriority ? "Priority" : "Play next"}
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     onClick={() => void playNow(s.id)}
-                    disabled={advancing}
+                    disabled={busy}
                     className="h-7 flex-1 px-2 text-xs"
                   >
                     <Play className="h-3.5 w-3.5" />

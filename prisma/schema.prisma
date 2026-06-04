@@ -77,6 +77,7 @@ model Stream {
   score       Int       @default(0) // denormalized net votes (sum of Vote.value)
   played      Boolean   @default(false) // true once it has started / finished playing
   playedAt    DateTime? // when the host advanced to it; latest = "now playing"
+  priorityAt  DateTime? // host bumped this to the front (FIFO among priority), bypassing votes
   createdAt   DateTime  @default(now())
 
   addedById String
@@ -87,6 +88,7 @@ model Stream {
   // leaderboard query: where played = false order by score desc
   @@index([played, score])
   @@index([playedAt])
+  @@index([priorityAt])
 }
 
 model Vote {
