@@ -4,9 +4,10 @@ import { type ComponentType, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ListMusic, Loader2, Play, SkipForward } from "lucide-react";
+import { ListMusic, Loader2, Play, Plus, SkipForward } from "lucide-react";
 import type { YouTubeProps } from "react-youtube";
 
+import { SubmitForm } from "@/components/submit-form";
 import { Button } from "@/components/ui/button";
 import { useStreams } from "@/hooks/use-streams";
 import type { StreamDTO } from "@/lib/streams";
@@ -131,6 +132,14 @@ export function HostPlayer() {
       </div>
 
       <aside className="space-y-3">
+        <div className="space-y-2 pb-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Plus className="h-4 w-4" />
+            Add a track
+          </h2>
+          <SubmitForm isAuthed onAdded={refresh} />
+        </div>
+
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           <ListMusic className="h-4 w-4" />
           Up next · {queue.length}
