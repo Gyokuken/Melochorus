@@ -1,0 +1,104 @@
+// Melochorus — Prisma schema
+// Auth.js (NextAuth) standard models + the music-queue domain models.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js / NextAuth models (managed by @auth/prisma-adapter)
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  // domain relations
+  streams Stream[]
+  votes   Vote[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+model Stream {
+  id          String    @id @default(cuid())
+  url         String // the original URL the user pasted
+  extractedId String // the 11-char YouTube video id
+  title       String
+  thumbnail   String
+  score       Int       @default(0) // denormalized net votes (sum of Vote.value)
+  played      Boolean   @default(false) // true once it has started / finished playing
+  playedAt    DateTime? // when the host advanced to it; latest = "now playing"
+  createdAt   DateTime  @default(now())
+
+  addedById String
+  addedBy   User   @relation(fields: [addedById], references: [id], onDelete: Cascade)
+
+  votes Vote[]
+
+  // leaderboard query: where played = false order by score desc
+  @@index([played, score])
+  @@index([playedAt])
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  value     Int // +1 (upvote) or -1 (downvote)
+  createdAt DateTime @default(now())
+
+  userId   String
+  streamId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  // one vote per user per stream — the heart of "one person, one vote"
+  @@unique([userId, streamId])
+}
