@@ -15,10 +15,10 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     // With the Prisma adapter the default session strategy is "database",
     // so the callback receives the DB `user`. Expose its id on the session.
+    // (Admin is now per-room ownership, not a global flag — see lib/rooms.ts.)
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
-        session.user.isAdmin = isAdmin(user.email);
       }
       return session;
     },
@@ -27,13 +27,3 @@ export const authOptions: NextAuthOptions = {
 
 /** Server-side session helper for route handlers / server components. */
 export const getServerAuthSession = () => getServerSession(authOptions);
-
-/** True if the given email is configured as an admin (the speaker machine). */
-export function isAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  const admins = (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return admins.includes(email.toLowerCase());
-}

@@ -37,8 +37,8 @@ const PLAYER_OPTS: YouTubeProps["opts"] = {
   playerVars: { autoplay: 1, modestbranding: 1, rel: 0 },
 };
 
-export function HostPlayer() {
-  const { nowPlaying, queue, refresh } = useStreams();
+export function HostPlayer({ roomId }: { roomId: string }) {
+  const { nowPlaying, queue, refresh } = useStreams(roomId);
   const [current, setCurrent] = useState<StreamDTO | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -57,7 +57,11 @@ export function HostPlayer() {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/streams/next", { method: "POST" });
+      const res = await fetch("/api/streams/next", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't advance the queue.");
       setCurrent(data.nowPlaying as StreamDTO | null);
@@ -196,7 +200,7 @@ export function HostPlayer() {
             <Plus className="h-4 w-4" />
             Add a track
           </h2>
-          <SubmitForm isAuthed onAdded={refresh} />
+          <SubmitForm roomId={roomId} onAdded={refresh} />
         </div>
 
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">

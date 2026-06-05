@@ -5,14 +5,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StreamDTO, StreamsResponse } from "@/lib/streams";
 
 /**
- * Polls GET /api/streams on an interval (default 5s) — our deploy-anywhere
- * alternative to WebSockets. Uses a recursive timeout so requests never
- * overlap, and exposes:
+ * Polls GET /api/streams?roomId=... on an interval (default 5s) — our
+ * deploy-anywhere alternative to WebSockets, which also serves as the room
+ * presence heartbeat (the server bumps lastSeenAt on each poll). Uses a
+ * recursive timeout so requests never overlap, and exposes:
  *   - refresh():  force an immediate refetch (after submitting a track)
  *   - applyVote(): patch one track's score/vote locally for instant feedback,
  *                  re-sorting the queue; the next poll reconciles with the server.
  */
-export function useStreams(intervalMs = 5000) {
+export function useStreams(roomId: string, intervalMs = 5000) {
   const [nowPlaying, setNowPlaying] = useState<StreamDTO | null>(null);
   const [queue, setQueue] = useState<StreamDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,7 +24,10 @@ export function useStreams(intervalMs = 5000) {
 
   const fetchStreams = useCallback(async () => {
     try {
-      const res = await fetch("/api/streams", { cache: "no-store" });
+      const res = await fetch(
+        `/api/streams?roomId=${encodeURIComponent(roomId)}`,
+        { cache: "no-store" },
+      );
       if (!res.ok) throw new Error("Failed to load the queue.");
       const data: StreamsResponse = await res.json();
       if (!active.current) return;
@@ -37,7 +41,7 @@ export function useStreams(intervalMs = 5000) {
     } finally {
       if (active.current) setIsLoading(false);
     }
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
     active.current = true;
@@ -62,8 +66,7 @@ export function useStreams(intervalMs = 5000) {
         const next = prev.map((s) =>
           s.id === streamId ? { ...s, score, userVote } : s,
         );
-        // keep the leaderboard ordering: priority first, then score desc,
-        // then oldest first (mirrors the server's QUEUE_ORDER)
+        // keep ordering: priority first, then score desc, then oldest first
         next.sort((a, b) => {
           if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
           return b.score - a.score || a.createdAt.localeCompare(b.createdAt);

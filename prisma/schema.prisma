@@ -54,6 +54,9 @@ model User {
   // domain relations
   streams Stream[]
   votes   Vote[]
+
+  hostedRooms Room[]       @relation("HostedRooms")
+  memberships RoomMember[]
 }
 
 model VerificationToken {
@@ -83,11 +86,14 @@ model Stream {
   addedById String
   addedBy   User   @relation(fields: [addedById], references: [id], onDelete: Cascade)
 
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
   votes Vote[]
 
-  // leaderboard query: where played = false order by score desc
-  @@index([played, score])
-  @@index([playedAt])
+  // leaderboard query: where roomId = ? and played = false order by score desc
+  @@index([roomId, played, score])
+  @@index([roomId, playedAt])
   @@index([priorityAt])
 }
 
@@ -103,4 +109,37 @@ model Vote {
 
   // one vote per user per stream — the heart of "one person, one vote"
   @@unique([userId, streamId])
+}
+
+// ---------------------------------------------------------------------------
+// Rooms
+// ---------------------------------------------------------------------------
+
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique // short join key entered to join the room
+  name      String
+  createdAt DateTime @default(now())
+
+  hostId String
+  host   User   @relation("HostedRooms", fields: [hostId], references: [id], onDelete: Cascade)
+
+  members RoomMember[]
+  streams Stream[]
+
+  @@index([hostId])
+}
+
+model RoomMember {
+  id         String   @id @default(cuid())
+  joinedAt   DateTime @default(now())
+  lastSeenAt DateTime @default(now()) // presence heartbeat, bumped on each poll
+
+  roomId String
+  userId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
 }

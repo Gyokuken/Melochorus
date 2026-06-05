@@ -1,44 +1,60 @@
 import { NextResponse } from "next/server";
 
-import { getServerAuthSession, isAdmin } from "@/lib/auth";
+import { getServerAuthSession } from "@/lib/auth";
+import { toErrorResponse } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
+import { requireHost } from "@/lib/rooms";
 import { QUEUE_ORDER, serializeStream } from "@/lib/streams";
 
 /**
- * POST /api/streams/next
- * Admin (host) only. Promotes the top unplayed track to "now playing":
- * marks it played + stamps playedAt. The previously-playing track keeps an
- * earlier playedAt, so "now playing" is always the row with the latest stamp.
- * Returns { nowPlaying } — null when the queue is empty.
+ * POST /api/streams/next  { roomId: string }
+ * Host only. Promotes the room's top unplayed track to "now playing" (marks it
+ * played + stamps playedAt). Returns { nowPlaying } — null when the queue is
+ * empty. Priority tracks are ordered first by QUEUE_ORDER, so a host "Play
+ * next" pick is selected here automatically.
  */
-export async function POST() {
-  const session = await getServerAuthSession();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
-  }
-  if (!isAdmin(session.user.email)) {
-    return NextResponse.json(
-      { error: "Only the host can advance the queue." },
-      { status: 403 },
-    );
-  }
+export async function POST(req: Request) {
+  try {
+    const session = await getServerAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    const userId = session.user.id;
 
-  const next = await prisma.$transaction(async (tx) => {
-    const top = await tx.stream.findFirst({
-      where: { played: false },
-      orderBy: QUEUE_ORDER,
-      select: { id: true },
+    let body: { roomId?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body." },
+        { status: 400 },
+      );
+    }
+    const roomId = body.roomId;
+    if (!roomId) {
+      return NextResponse.json({ error: "roomId is required." }, { status: 400 });
+    }
+    await requireHost(userId, roomId);
+
+    const next = await prisma.$transaction(async (tx) => {
+      const top = await tx.stream.findFirst({
+        where: { roomId, played: false },
+        orderBy: QUEUE_ORDER,
+        select: { id: true },
+      });
+      if (!top) return null;
+
+      return tx.stream.update({
+        where: { id: top.id },
+        data: { played: true, playedAt: new Date() },
+        include: { addedBy: { select: { name: true, image: true } } },
+      });
     });
-    if (!top) return null;
 
-    return tx.stream.update({
-      where: { id: top.id },
-      data: { played: true, playedAt: new Date() },
-      include: { addedBy: { select: { name: true, image: true } } },
+    return NextResponse.json({
+      nowPlaying: next ? serializeStream(next, userId) : null,
     });
-  });
-
-  return NextResponse.json({
-    nowPlaying: next ? serializeStream(next, session.user.id) : null,
-  });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 }

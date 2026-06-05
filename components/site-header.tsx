@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { Headphones, LogOut, Music2 } from "lucide-react";
+import { LogOut, Music2 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,6 @@ export function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-3">
           {status === "loading" ? null : user ? (
             <>
-              {user.isAdmin && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/host">
-                    <Headphones className="h-4 w-4" />
-                    <span className="hidden sm:inline">Host</span>
-                  </Link>
-                </Button>
-              )}
               <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage
