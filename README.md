@@ -28,20 +28,20 @@ Melochorus was built for shared spaces — a lab, a hostel common room, a hackat
 
 ---
 
-## ✨ Features
+##  Features
 
-- **🔐 Google sign‑in** — one‑tap auth via NextAuth, real identities, real one‑person‑one‑vote.
-- **🏠 Rooms with join codes** — create a room, share a 6‑character code; anyone signed in can join.
-- **🗳️ Live voting leaderboard** — up/down‑vote tracks; the queue re‑ranks for everyone within seconds (polling, no WebSockets needed).
-- **▶️ Auto‑advancing host player** — embeds YouTube, plays the top‑voted track, and advances to the next when each song ends.
-- **🎚️ Host DJ overrides** — *Play now* (jump to a track immediately) and *Play next* (bump a track to the front, bypassing votes — shows a ⚡ Priority badge to everyone).
-- **👥 Presence** — the host sees **who's joined** with live online dots.
-- **🧹 Room lifecycle** — host can **End room**; idle rooms expire after 24h; a daily cron sweeps abandoned ones (no database bloat).
-- **🌑 Modern dark UI** — Tailwind + shadcn/ui, violet accent.
+- ** Google sign‑in** — one‑tap auth via NextAuth, real identities, real one‑person‑one‑vote.
+- ** Rooms with join codes** — create a room, share a 6‑character code; anyone signed in can join.
+- ** Live voting leaderboard** — up/down‑vote tracks; the queue re‑ranks for everyone within seconds (polling, no WebSockets needed).
+- ** Auto‑advancing host player** — embeds YouTube, plays the top‑voted track, and advances to the next when each song ends.
+- ** Host DJ overrides** — *Play now* (jump to a track immediately) and *Play next* (bump a track to the front, bypassing votes — shows a ⚡ Priority badge to everyone).
+- ** Presence** — the host sees **who's joined** with live online dots.
+- ** Room lifecycle** — host can **End room**; idle rooms expire after 24h; a daily cron sweeps abandoned ones (no database bloat).
+- ** Modern dark UI** — Tailwind + shadcn/ui, violet accent.
 
 ---
 
-## 🧠 How it works
+##  How it works
 
 ```
    Phones / laptops (audience)                 Host machine (speaker)
@@ -63,7 +63,7 @@ Melochorus was built for shared spaces — a lab, a hostel common room, a hackat
 
 ---
 
-## 🧰 Tech stack
+##  Tech stack
 
 | Layer | Choice |
 |------|--------|
@@ -78,7 +78,7 @@ Melochorus was built for shared spaces — a lab, a hostel common room, a hackat
 
 ---
 
-## 🚀 Getting started
+##  Getting started
 
 ### Prerequisites
 - **Node.js 18.17+** (LTS recommended)
@@ -117,7 +117,7 @@ Open [http://localhost:3000](http://localhost:3000), create a room, and share th
 
 ---
 
-## 🔑 Environment variables
+##  Environment variables
 
 Copy `.env.example` to `.env` and fill these in. **Never commit `.env`.**
 
@@ -132,7 +132,7 @@ Copy `.env.example` to `.env` and fill these in. **Never commit `.env`.**
 
 ---
 
-## 📜 Scripts
+##  Scripts
 
 | Script | What it does |
 |--------|--------------|
@@ -146,7 +146,7 @@ Copy `.env.example` to `.env` and fill these in. **Never commit `.env`.**
 
 ---
 
-## 🗂️ Project structure
+##  Project structure
 
 ```
 app/
@@ -171,7 +171,7 @@ prisma/
 
 ---
 
-## 🌐 Deployment
+##  Deployment
 
 Melochorus deploys cleanly to **Vercel**:
 
@@ -184,7 +184,7 @@ Every push to `main` auto‑deploys.
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are very welcome — issues, ideas, and PRs all help.
 
