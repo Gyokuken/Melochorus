@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 import { NowPlaying } from "@/components/now-playing";
@@ -59,9 +61,16 @@ export function RoomClient({ code }: { code: string }) {
 }
 
 function RoomBody({ room }: { room: RoomContext }) {
-  const { nowPlaying, queue, isLoading, error, refresh, applyVote } = useStreams(
-    room.id,
-  );
+  const router = useRouter();
+  const { nowPlaying, queue, isLoading, error, roomClosed, refresh, applyVote } =
+    useStreams(room.id);
+
+  useEffect(() => {
+    if (roomClosed) {
+      toast.info("This room has ended.");
+      router.push("/");
+    }
+  }, [roomClosed, router]);
 
   return (
     <main className="container max-w-3xl space-y-6 py-6">

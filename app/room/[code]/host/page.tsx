@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getServerAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { EndRoomButton } from "@/components/end-room-button";
 import { HostPlayer } from "@/components/host-player";
 import { MembersPanel } from "@/components/members-panel";
 import { SignInButton } from "@/components/sign-in-button";
@@ -67,9 +68,12 @@ export default async function RoomHostPage({
               Plays the top-voted track and auto-advances when each one ends.
             </p>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/room/${room.code}`}>Room view</Link>
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/room/${room.code}`}>Room view</Link>
+            </Button>
+            <EndRoomButton code={room.code} />
+          </div>
         </div>
         <HostPlayer roomId={room.id} />
         <MembersPanel code={room.code} />

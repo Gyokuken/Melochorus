@@ -18,6 +18,7 @@ export function useStreams(roomId: string, intervalMs = 5000) {
   const [queue, setQueue] = useState<StreamDTO[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [roomClosed, setRoomClosed] = useState(false);
 
   const active = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,6 +29,11 @@ export function useStreams(roomId: string, intervalMs = 5000) {
         `/api/streams?roomId=${encodeURIComponent(roomId)}`,
         { cache: "no-store" },
       );
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        // membership revoked or room ended — stop polling and let the page leave
+        if (active.current) setRoomClosed(true);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load the queue.");
       const data: StreamsResponse = await res.json();
       if (!active.current) return;
@@ -77,5 +83,13 @@ export function useStreams(roomId: string, intervalMs = 5000) {
     [],
   );
 
-  return { nowPlaying, queue, isLoading, error, refresh: fetchStreams, applyVote };
+  return {
+    nowPlaying,
+    queue,
+    isLoading,
+    error,
+    roomClosed,
+    refresh: fetchStreams,
+    applyVote,
+  };
 }

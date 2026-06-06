@@ -8,6 +8,9 @@ const CODE_LENGTH = 6;
 /** How recently a member must have polled to count as "online". */
 export const ONLINE_WINDOW_MS = 30_000;
 
+/** A room with nobody present for this long is considered ended (idle expiry). */
+export const ROOM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
 /** Room context handed to the client when it loads a room. */
 export type RoomContext = {
   id: string;
@@ -43,6 +46,27 @@ export async function getRoomByCodeOrThrow(code: string) {
   });
   if (!room) throw new HttpError(404, "That room doesn't exist.");
   return room;
+}
+
+/**
+ * Delete the room if nobody has been present for ROOM_TTL_MS (idle expiry).
+ * Returns true if it was pruned. Call on user-facing entry points (opening /
+ * joining) so a long-dead room reads as "doesn't exist".
+ */
+export async function pruneIfStale(room: {
+  id: string;
+  createdAt: Date;
+}): Promise<boolean> {
+  const { _max } = await prisma.roomMember.aggregate({
+    where: { roomId: room.id },
+    _max: { lastSeenAt: true },
+  });
+  const lastSeen = _max.lastSeenAt ?? room.createdAt;
+  if (Date.now() - lastSeen.getTime() > ROOM_TTL_MS) {
+    await prisma.room.delete({ where: { id: room.id } }).catch(() => {});
+    return true;
+  }
+  return false;
 }
 
 /** Throw 403 unless the user has joined the room. */

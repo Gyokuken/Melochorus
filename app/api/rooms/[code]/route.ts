@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { getServerAuthSession } from "@/lib/auth";
-import { toErrorResponse } from "@/lib/http";
+import { HttpError, toErrorResponse } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { getRoomByCodeOrThrow, type RoomContext } from "@/lib/rooms";
+import {
+  getRoomByCodeOrThrow,
+  pruneIfStale,
+  requireHost,
+  type RoomContext,
+} from "@/lib/rooms";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/rooms/[code]
- * Auth required. Resolves the room, auto-joins the caller (opening a link = a
- * join), marks them present, and returns the room context for the client.
+ * Auth required. Resolves the room (expiring it if idle), auto-joins the caller
+ * (opening a link = a join), marks them present, and returns the room context.
  */
 export async function GET(
   _req: Request,
@@ -27,6 +32,9 @@ export async function GET(
     const userId = session.user.id;
 
     const room = await getRoomByCodeOrThrow(params.code);
+    if (await pruneIfStale(room)) {
+      throw new HttpError(404, "That room has ended.");
+    }
 
     // Opening a room link joins you (idempotent) and marks you present.
     await prisma.roomMember.upsert({
@@ -47,6 +55,30 @@ export async function GET(
       memberCount,
     };
     return NextResponse.json(context);
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+/**
+ * DELETE /api/rooms/[code]
+ * Host only. Ends the room — cascade-deletes its streams, votes, and members.
+ */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { code: string } },
+) {
+  try {
+    const session = await getServerAuthSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
+    const room = await getRoomByCodeOrThrow(params.code);
+    await requireHost(session.user.id, room.id);
+    await prisma.room.delete({ where: { id: room.id } });
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     return toErrorResponse(err);
   }

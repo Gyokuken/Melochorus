@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getServerAuthSession } from "@/lib/auth";
-import { toErrorResponse } from "@/lib/http";
+import { HttpError, toErrorResponse } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
-import { getRoomByCodeOrThrow } from "@/lib/rooms";
+import { getRoomByCodeOrThrow, pruneIfStale } from "@/lib/rooms";
 
 /**
  * POST /api/rooms/join  { code: string }
@@ -35,6 +35,9 @@ export async function POST(req: Request) {
     }
 
     const room = await getRoomByCodeOrThrow(code);
+    if (await pruneIfStale(room)) {
+      throw new HttpError(404, "That room has ended.");
+    }
 
     await prisma.roomMember.upsert({
       where: { roomId_userId: { roomId: room.id, userId } },
